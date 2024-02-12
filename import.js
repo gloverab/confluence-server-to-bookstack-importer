@@ -29,7 +29,6 @@ let bookCreatedCount = 0
 let pagesNotCreated = 0
 let booksNotCreated = 0
 
-
 const onlyUnique = (value, index, array) => {
   return array.indexOf(value) === index;
 }
@@ -396,6 +395,7 @@ const init = async () => {
   console.log(`\x1b[32m Pages Created: ${pageCreatedCount} \x1b[0m`)
   console.log(`\x1b[31m Book Errors: ${booksNotCreated} \x1b[0m`)
   console.log(`\x1b[31m Page Errors: ${pagesNotCreated} \x1b[0m`)
+  hiJon()
 }
 
 process.argv.forEach(function (val, index, array) {
@@ -409,7 +409,6 @@ process.argv.forEach(function (val, index, array) {
 });
 
 if (process.argv[2] === 'run') {
-  // hiJon()
   if (subDirectory) {
     init()
   } else {
