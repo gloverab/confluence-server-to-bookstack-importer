@@ -5,7 +5,7 @@ const jsdom = require("jsdom");
 
 const fileDirectory = process.env.PATH_TO_HTML
 let subDirectory
-let timeoutBetweenPages = 400
+let timeoutBetweenPages = 500
 
 const credentials = {
   "url": process.env.URL,
