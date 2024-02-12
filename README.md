@@ -9,7 +9,7 @@ You'll need basically any version of node installed.
 - `npm install`
 
 ## Usage
-To import a folder, run:
+To import a folder of HTML files to bookstack, run:
 `node import.js run <subdirectory-in-html-folder>`
 
 For example, if you're trying to import `./html/IT-stuff`:
