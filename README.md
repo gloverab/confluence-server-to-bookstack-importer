@@ -12,8 +12,9 @@ You'll need basically any version of node installed.
 To import a folder, run:
 `node import.js run <subdirectory-in-html-folder>`
 
-For example you're trying to import `./html/IT-stuff`:
-- Your .env `PATH_TO_HTML` would be set to `./html` and you would run `node import.js run IT-stuff`
+For example, if you're trying to import `./html/IT-stuff`:
+- Your .env `PATH_TO_HTML` would be set to `./html`
+- You would run `node import.js run IT-stuff`
 
 ## Nuke
 If an import gets messed up, you can delete everything by running:
