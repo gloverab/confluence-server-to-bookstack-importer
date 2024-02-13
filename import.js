@@ -6,6 +6,7 @@ const jsdom = require("jsdom");
 const fileDirectory = process.env.PATH_TO_HTML
 let subDirectory
 let timeoutBetweenPages = 500
+let moreTrey = false
 
 const credentials = {
   "url": process.env.URL,
@@ -21,6 +22,7 @@ let chapters = []
 
 let shelfFiles = []
 let bookFiles = []
+let chapterFiles = {}
 let pagesFilesNoChapter = []
 let pageFilesWithChapter = []
 
@@ -84,16 +86,13 @@ const sortFiles = () => {
         const arr = [...breadcrumbListItems]
         const branch = arr.map(v => v.getElementsByTagName('a')[0].getAttribute('href'))
         branchesWithFourOrMore.push(branch)
-  
-        for (let i = 3; i < arr.length; i++) {
-          pageFilesWithChapter.push({
-            bookPreviousId: getIdFromFilename(branch[2]),
-            chapterPreviousId: getIdFromFilename(branch[3]),
-            chapterFilename: branch[3],
-            pageFilename: filename
-          })
+
+        chapterFiles[branch[3]] = {
+          bookPreviousId: getIdFromFilename(branch[2]),
+          chapterFilename: branch[3],
+          chapterPreviousId: getIdFromFilename(branch[3]),
+          pageFilenames: chapterFiles[branch[3]] && chapterFiles[branch[3]].pageFilenames ? [...chapterFiles[branch[3]].pageFilenames, filename] : [filename]
         }
-  
       }
     }
   })
@@ -109,26 +108,16 @@ const sortFiles = () => {
       })
     }
   })
-
-  const chapterFilenames = pageFilesWithChapter.map(v => v.chapterFilename).filter(onlyUnique)
-
-  console.log(`\x1b[36m Shelves - ${shelfFiles.length} \x1b[0m`)
-  console.log(`\x1b[36m Books - ${bookFiles.length} \x1b[0m`)
-  console.log(`\x1b[36m Chapters - ${chapterFilenames.length} \x1b[0m`)
-  console.log(`\x1b[36m Pages belonging to a chapter - ${pageFilesWithChapter.length} \x1b[0m`)
-  console.log(`\x1b[36m Pages belonging to a book - ${pagesFilesNoChapter.length} \x1b[0m`)
 }
 
 const createChapters = async () => {
-  const chapterFilenames = pageFilesWithChapter.map(v => v.chapterFilename).filter(onlyUnique)
-  const chapterPreviousIds = pageFilesWithChapter.map(v => v.chapterPreviousId).filter(onlyUnique)
-
-  const promises = chapterFilenames.map((filename, i) => {
-    const file = fs.readFileSync(getFilePath(filename), 'utf-8')
+  const chapterFilenames = Object.keys(chapterFiles)
+  const promises = chapterFilenames.map((chapterFilename, i) => {
+    const file = fs.readFileSync(getFilePath(chapterFilename), 'utf-8')
     const dom = new jsdom.JSDOM(file);
     const breadcrumbs = dom.window.document.getElementById('breadcrumbs')
     const titleHeading = dom.window.document.getElementById('title-heading')
-    const parentBook = books.find(book => book.previousId === pageFilesWithChapter[i].bookPreviousId)
+    const parentBook = books.find(book => book.previousId === chapterFiles[chapterFilename].bookPreviousId)
 
     const titleTextElement = dom.window.document.getElementById('title-text')
     let title = "generic title"
@@ -139,12 +128,15 @@ const createChapters = async () => {
     breadcrumbs.remove()
     const htmlString = dom.serialize()
 
+    if (title.includes(" : ")) {
+      title = title.split(' : ')[1]
+    }
+
     const params = {
       name: title,
       book_id: parentBook.book
     }
-
-    let newChapterId
+    
     return new Promise(resolve => setTimeout(resolve, i * timeoutBetweenPages))
       .then(() => {
         return axios.createChapter(params)
@@ -152,9 +144,16 @@ const createChapters = async () => {
             newChapterId = resp.data.id
             chapters.push({
               id: resp.data.id,
-              previousId: chapterPreviousIds[i]
+              previousId: chapterFiles[chapterFilename].chapterPreviousId
             })
-            process.stdout.write(`\x1b[32m ${filename} \x1b[0m\n`)
+            chapterFiles[chapterFilename].pageFilenames.forEach(fn => {
+              pageFilesWithChapter.push({
+                chapterId: resp.data.id,
+                pageFilename: fn
+              })
+            })
+            
+            process.stdout.write(`\x1b[32m ${chapterFilename} \x1b[0m\n`)
             chapterCreatedCount++
             return axios.createPage({
               chapter_id: resp.data.id,
@@ -164,8 +163,8 @@ const createChapters = async () => {
           })
           .catch(err => {
             console.log(err)
-            chaptersNotCreated.push(filename)
-            process.stdout.write(`\x1b[31m ${filename} \x1b[0m\n`)
+            chaptersNotCreated.push(chapterFilename)
+            process.stdout.write(`\x1b[31m ${chapterFilename} \x1b[0m\n`)
           })
       })
   })
@@ -207,8 +206,8 @@ const createPages = async (pagesArray) => {
       name: `${title}`,
       html: htmlString
     }
-    if (pagesArray[i].chapterPreviousId) {
-      params.chapter_id = chapters.find(c => c.previousId === pagesArray[i].chapterPreviousId).id
+    if (pagesArray[i].chapterId) {
+      params.chapter_id = pagesArray[i].chapterId
     } else {
       params.book_id = parentBook.book
     }
@@ -398,15 +397,30 @@ const init = async () => {
   console.log('\x1b[33m Creating books... \x1b[0m')
   await createBooks()
   console.log('\x1b[32m Books created! \x1b[0m')
+  if (moreTrey && booksNotCreated.length === 0) {
+    hiJon({
+      color: '\x1b[32m'
+    })
+  }
   console.log('\x1b[33m Putting Books on Shelves... \x1b[0m')
   await putBooksOnShelves()
   console.log('\x1b[32m Books are on the shelves! \x1b[0m')
   console.log('\x1b[33m Creating chapters... \x1b[0m')
   await createChapters()
   console.log('\x1b[32m Chapters Created! \x1b[0m')
+  if (moreTrey && chaptersNotCreated.length === 0) {
+    hiJon({
+      color: '\x1b[32m'
+    })
+  }
   console.log('\x1b[33m Creating Standalone Pages... \x1b[0m')
   await createPages(pagesFilesNoChapter)
   console.log('\x1b[32m Standalone Pages Created! \x1b[0m')
+  if (moreTrey && pagesNotCreated.length === 0) {
+    hiJon({
+      color: '\x1b[32m'
+    })
+  }
   console.log('\x1b[33m Creating Pages in Chapters... \x1b[0m')
   await createPages(pageFilesWithChapter)
   console.log('\x1b[32m Pages in Chapters Created! \x1b[0m')
@@ -423,16 +437,16 @@ const init = async () => {
 
   console.log("Books Not Created:")
   booksNotCreated.forEach((book) => {
-  console.log(`\x1b ${book} \x1b[0m`)
-  })
+    console.log(`\x1b[32m ${book} \x1b[0m`)
+    })
   console.log("Chapters Not Created:")
   chaptersNotCreated.forEach((chapter) => {
-  console.log(`\x1b ${chapter} \x1b[0m`)
-  })
+    console.log(`\x1b[32m ${chapter} \x1b[0m`)
+    })
   console.log("Pages Not Created:")
   pagesNotCreated.forEach((page) => {
-  console.log(`\x1b ${page} \x1b[0m`)
-   })
+    console.log(`\x1b[32m ${page} \x1b[0m`)
+  })
 }
 
 process.argv.forEach(function (val, index, array) {
@@ -443,6 +457,10 @@ process.argv.forEach(function (val, index, array) {
   if (index === 4 && !!val) {
     timeoutBetweenPages = val
   }
+
+  if (val.toLowerCase() === '-moretrey') {
+    moreTrey = true
+  }
 });
 
 if (process.argv[2] === 'run') {
@@ -451,4 +469,8 @@ if (process.argv[2] === 'run') {
   } else {
     console.log('Please include an argument for subdirectory')
   }
+}
+
+if (process.argv[2] === 'sort') {
+  sortFiles()
 }
