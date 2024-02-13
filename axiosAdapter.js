@@ -1,5 +1,7 @@
 const Axios = require('axios');
+const axiosRetry = require('axios-retry').default;
 
+console.log(axiosRetry)
 class AxiosAdapter {
   constructor(baseURL, id, secret) {
     const instance = Axios.create({
@@ -9,6 +11,18 @@ class AxiosAdapter {
           qs.stringify(params, { arrayFormat: 'comma' })
       }
     })
+
+    axiosRetry(instance, {
+      retries: 3,
+      retryDelay: (retryCount) => {
+        console.log(`Retry attempt: ${retryCount}`);
+        return retryCount * 2000; // time interval between retries
+      },
+      retryCondition: (error) => {
+        // if retry condition is not specified, by default idempotent requests are retried
+        return error.response.status === 500 || error.response.status === 404;
+      },
+    });
 
     this.baseURL = baseURL
     this.id = id
