@@ -12,7 +12,7 @@ class AxiosAdapter {
     })
 
     axiosRetry(instance, {
-      retries: 5,
+      retries: 7,
       retryDelay: (retryCount) => {
         console.log(`Retry attempt: ${retryCount}`);
         return retryCount * 2000; // time interval between retries

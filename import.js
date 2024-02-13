@@ -25,9 +25,12 @@ let pagesFilesNoChapter = []
 let pageFilesWithChapter = []
 
 let pageCreatedCount = 0
+let chapterCreatedCount = 0
 let bookCreatedCount = 0
-let pagesNotCreated = 0
-let booksNotCreated = 0
+
+let pagesNotCreated = []
+let chaptersNotCreated = []
+let booksNotCreated = []
 
 const onlyUnique = (value, index, array) => {
   return array.indexOf(value) === index;
@@ -152,6 +155,7 @@ const createChapters = async () => {
               previousId: chapterPreviousIds[i]
             })
             process.stdout.write(`\x1b[32m ${filename} \x1b[0m\n`)
+            chapterCreatedCount++
             return axios.createPage({
               chapter_id: resp.data.id,
               name: "_General",
@@ -160,6 +164,7 @@ const createChapters = async () => {
           })
           .catch(err => {
             console.log(err)
+            chaptersNotCreated.push(filename)
             process.stdout.write(`\x1b[31m ${filename} \x1b[0m\n`)
           })
       })
@@ -195,6 +200,9 @@ const createPages = async (pagesArray) => {
     breadcrumbs.remove()
     const htmlString = dom.serialize()
 
+    if (title.includes(" : ")) {
+      title = title.split(' : ')[1]
+    }
     const params = {
       name: `${title}`,
       html: htmlString
@@ -216,7 +224,7 @@ const createPages = async (pagesArray) => {
          })
          .catch(err => {
             process.stdout.write(`\x1b[31m ${filename} \x1b[0m\n`)
-            pagesNotCreated++
+            pagesNotCreated.push(filename)
             console.log(err)
          })
       })
@@ -261,6 +269,10 @@ const createBooks = async () => {
     }
     titleHeading.remove()
 
+    if (title.includes(" : ")) {
+      title = title.split(' : ')[1]
+    }
+
     let bookId
     return new Promise(resolve => setTimeout(resolve, i * timeoutBetweenPages))
       .then(() => {
@@ -283,12 +295,12 @@ const createBooks = async () => {
             })
           })
           .then(resp => {
-            console.log(`\x1b[32m ${filename} \x1b[0m\n`)
+            console.log(`\x1b[32m ${filename} \x1b[0m`)
             return resp.data
           })
           .catch(err => {
             process.stdout.write(`\x1b[31m ${filename} \x1b[0m\n`)
-            booksNotCreated++
+            booksNotCreated.push(filename)
           })
     })
   })
@@ -400,11 +412,26 @@ const init = async () => {
   console.log('\x1b[32m Pages in Chapters Created! \x1b[0m')
   console.log('------------------------------------------------')
   console.log(`\x1b[32m Books Created: ${bookCreatedCount} \x1b[0m`)
+  console.log(`\x1b[32m Chapters Created: ${chapterCreatedCount} \x1b[0m`)
   console.log(`\x1b[32m Pages Created: ${pageCreatedCount} \x1b[0m`)
-  console.log(`\x1b[31m Book Errors: ${booksNotCreated} \x1b[0m`)
-  console.log(`\x1b[31m Page Errors: ${pagesNotCreated} \x1b[0m`)
+  console.log(`\x1b[31m Book Errors: ${booksNotCreated.length} \x1b[0m`)
+  console.log(`\x1b[31m Chapter Errors: ${chaptersNotCreated.length} \x1b[0m`)
+  console.log(`\x1b[31m Page Errors: ${pagesNotCreated.length} \x1b[0m`)
   hiJon({ 
-    color: booksNotCreated.length > 0 || pagesNotCreated > 0 ? '\x1b[91m' : '\x1b[32m'
+    color: booksNotCreated.length > 0 || pagesNotCreated.length > 0 ? '\x1b[91m' : '\x1b[32m'
+   })
+
+  console.log("Books Not Created:")
+  booksNotCreated.forEach((book) => {
+  console.log(`\x1b ${book} \x1b[0m`)
+  })
+  console.log("Chapters Not Created:")
+  chaptersNotCreated.forEach((chapter) => {
+  console.log(`\x1b ${chapter} \x1b[0m`)
+  })
+  console.log("Pages Not Created:")
+  pagesNotCreated.forEach((page) => {
+  console.log(`\x1b ${page} \x1b[0m`)
    })
 }
 
