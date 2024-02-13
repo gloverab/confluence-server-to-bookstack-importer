@@ -5,7 +5,7 @@ const jsdom = require("jsdom");
 
 const fileDirectory = process.env.PATH_TO_HTML
 let subDirectory
-let timeoutBetweenPages = 500
+let timeoutBetweenPages = 0
 
 const credentials = {
   "url": process.env.URL,
@@ -333,8 +333,8 @@ const createShelves = async () => {
   return createdShelves
 }
 
-const hiJon = () => {
-  console.log("\x1b[91m")
+const hiJon = (options) => {
+  console.log(options.color)
   console.log("                         *#@@@@@@@@@@@@@@@@@@@*                           ")
   console.log("                  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                        ")
   console.log("                @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                     ")
@@ -395,7 +395,9 @@ const init = async () => {
   console.log(`\x1b[32m Pages Created: ${pageCreatedCount} \x1b[0m`)
   console.log(`\x1b[31m Book Errors: ${booksNotCreated} \x1b[0m`)
   console.log(`\x1b[31m Page Errors: ${pagesNotCreated} \x1b[0m`)
-  hiJon()
+  hiJon({ 
+    color: booksNotCreated.length > 0 || pagesNotCreated > 0 ? '\x1b[91m' : '\x1b[32m'
+   })
 }
 
 process.argv.forEach(function (val, index, array) {
