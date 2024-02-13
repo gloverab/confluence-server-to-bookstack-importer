@@ -142,18 +142,26 @@ const createChapters = async () => {
     }
 
     let newChapterId
-    return axios.createChapter(params)
-      .then(resp => {
-        newChapterId = resp.data.id
-        chapters.push({
-          id: resp.data.id,
-          previousId: chapterPreviousIds[i]
-        })
-        return axios.createPage({
-          chapter_id: resp.data.id,
-          name: "_General",
-          html: htmlString
-        })
+    return new Promise(resolve => setTimeout(resolve, i * timeoutBetweenPages))
+      .then(() => {
+        return axios.createChapter(params)
+          .then(resp => {
+            newChapterId = resp.data.id
+            chapters.push({
+              id: resp.data.id,
+              previousId: chapterPreviousIds[i]
+            })
+            process.stdout.write(`\x1b[32m ${filename} \x1b[0m\n`)
+            return axios.createPage({
+              chapter_id: resp.data.id,
+              name: "_General",
+              html: htmlString
+            })
+          })
+          .catch(err => {
+            console.log(err)
+            process.stdout.write(`\x1b[31m ${filename} \x1b[0m\n`)
+          })
       })
   })
 

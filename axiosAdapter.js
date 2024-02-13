@@ -1,7 +1,6 @@
 const Axios = require('axios');
 const axiosRetry = require('axios-retry').default;
 
-console.log(axiosRetry)
 class AxiosAdapter {
   constructor(baseURL, id, secret) {
     const instance = Axios.create({
@@ -13,7 +12,7 @@ class AxiosAdapter {
     })
 
     axiosRetry(instance, {
-      retries: 3,
+      retries: 5,
       retryDelay: (retryCount) => {
         console.log(`Retry attempt: ${retryCount}`);
         return retryCount * 2000; // time interval between retries
