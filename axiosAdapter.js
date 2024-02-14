@@ -60,6 +60,11 @@ class AxiosAdapter {
       headers: this.getHeaders('application/json')
     })
 
+  postMFD = (url, data) =>
+    this.client.post(url, data, {
+      headers: this.getHeaders('multipart/form-data')
+    })
+
   createShelf = async (body) => {
     return this.postJson('/shelves', body)
   }
@@ -74,6 +79,10 @@ class AxiosAdapter {
 
   createPage = async (body) => {
     return this.postJson('/pages', body)
+  }
+
+  createAttachment = async (body) => {
+    return this.postMFD('/attachments', body)
   }
 
   getBooks = async () => {

@@ -1,4 +1,4 @@
-# THING
+# Confluence Server To Bookstack Importer
 
 You'll need basically any version of node installed.
 
@@ -19,3 +19,6 @@ For example, if you're trying to import `./html/IT-stuff`:
 ## Nuke
 If an import gets messed up, you can delete everything by running:
 `node nuke.js`
+
+## Caveats
+This is a work in progress. It currently does not import images and attachments.

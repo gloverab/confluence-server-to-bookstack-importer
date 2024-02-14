@@ -1,4 +1,5 @@
 require('dotenv').config()
+const FormData = require('form-data');
 const fs = require( 'fs' );
 const { AxiosAdapter } = require('./axiosAdapter.js');
 const jsdom = require("jsdom");
@@ -173,66 +174,6 @@ const createChapters = async () => {
   return createdChapters
 }
 
-const createPages = async (pagesArray) => {
-  const filenames = pagesArray.map(p => p.pageFilename)
-  const promises = filenames.map((filename, i) => {
-    const file = fs.readFileSync(getFilePath(filename), 'utf-8')
-    const dom = new jsdom.JSDOM(file);
-    const breadcrumbs = dom.window.document.getElementById('breadcrumbs')
-    const breadcrumbLinkItems = breadcrumbs.getElementsByTagName('a')
-    const titleHeading = dom.window.document.getElementById('title-heading')
-    var arr = [...breadcrumbLinkItems];
-    let parentBook
-    arr.forEach((item, i) => {
-      if (i === 2) {
-        const parentBookPreviousId = getIdFromHref(item)
-        parentBook = books.find(b => b.previousId === parentBookPreviousId)
-      }
-    })
-    
-    const titleTextElement = dom.window.document.getElementById('title-text')
-    let title = "title not found"
-    if (titleTextElement) {
-      title = dom.window.document.getElementById('title-text').textContent
-    }
-    titleHeading.remove()
-    breadcrumbs.remove()
-    const htmlString = dom.serialize()
-
-    if (title.includes(" : ")) {
-      title = title.split(' : ')[1]
-    }
-    const params = {
-      name: `${title}`,
-      html: htmlString
-    }
-    if (pagesArray[i].chapterId) {
-      params.chapter_id = pagesArray[i].chapterId
-    } else {
-      params.book_id = parentBook.book
-    }
-    return new Promise(resolve => setTimeout(resolve, i * timeoutBetweenPages))
-      .then(() => {
-        process.stdout.write(filename)
-        return axios.createPage(params)
-         .then(resp => {
-            process.stdout.clearLine(0)
-            process.stdout.cursorTo(0)
-            process.stdout.write(`\x1b[32m ${filename} \x1b[0m\n`)
-            pageCreatedCount++
-         })
-         .catch(err => {
-            process.stdout.write(`\x1b[31m ${filename} \x1b[0m\n`)
-            pagesNotCreated.push(filename)
-            console.log(err)
-         })
-      })
-  })
-
-  const createdPages = Promise.all(promises)
-  return createdPages
-}
-
 const putBooksOnShelves = async () => {
   const shelfIds = books.map(book => book.shelf)
   const uniqueIds = shelfIds.filter(onlyUnique)
@@ -352,6 +293,136 @@ const createShelves = async () => {
   return createdShelves
 }
 
+const createAttachment = async () => {
+  const params = {
+    uploaded_to: 10306,
+    name: 'Generic name!',
+    file: fs.createReadStream('./html/ITDocs/attachments/3768481/3866673.jpg')
+  }
+  console.log(params)
+  axios.createAttachment(params)
+    .then(resp => {
+      console.log(resp.data)
+    })
+    .catch(err => {
+      console.log(err)
+    })
+}
+
+const createAttachments = async (dom, replacedImages, page_id) => {
+  const links = dom.window.document.getElementsByTagName('a')
+  const arr = [...links]
+  arr.forEach((link, i) => {
+    const href = link.getAttribute('href')
+    if (href && fs.existsSync(getFilePath(href))) {
+      if (!replacedImages.includes(href)) {
+        setTimeout(async () => {
+          let name = ''
+          if (link.textContent) {
+            name = link.textContent
+          }
+          const params = {
+            uploaded_to: page_id,
+            name: link.textContent,
+            file: fs.createReadStream(getFilePath(href))
+          }
+
+          axios.createAttachment(params)
+            .then(resp => {
+              console.log(resp.data)
+            })
+            .catch(err => {
+              console.log(err)
+              // console.log(err.response.data)
+            })
+        }, i * timeoutBetweenPages)
+      }
+    }
+  })
+}
+
+const getBase64FromElement = (element) => {
+  const path = getFilePath(element.getAttribute('src'))
+  const data = fs.readFileSync(path)
+  return data.toString('base64')
+}
+
+const replaceImgWithBase64 = (dom, fileId) => {
+  let replacedImages = []
+  const imgElements = dom.window.document.getElementsByTagName('img')
+  const arr = [...imgElements]
+  arr.forEach((img, i) => {
+    if (img.getAttribute('src') && fs.existsSync(getFilePath(img.getAttribute('src')))) {
+      replacedImages.push(img.getAttribute('src'))
+      imgElements[i].setAttribute('src', `data:image/png;base64, ${getBase64FromElement(img)}`)
+    }
+  })
+  return replacedImages
+}
+
+const createPages = async (pagesArray) => {
+  const filenames = pagesArray.map(p => p.pageFilename)
+  const promises = filenames.map((filename, i) => {
+    const file = fs.readFileSync(getFilePath(filename), 'utf-8')
+    let dom = new jsdom.JSDOM(file);
+    const breadcrumbs = dom.window.document.getElementById('breadcrumbs')
+    const breadcrumbLinkItems = breadcrumbs.getElementsByTagName('a')
+    const titleHeading = dom.window.document.getElementById('title-heading')
+    var arr = [...breadcrumbLinkItems];
+    let parentBook
+    arr.forEach((item, i) => {
+      if (i === 2) {
+        const parentBookPreviousId = getIdFromHref(item)
+        parentBook = books.find(b => b.previousId === parentBookPreviousId)
+      }
+    })
+    
+    const titleTextElement = dom.window.document.getElementById('title-text')
+    let title = "title not found"
+    if (titleTextElement) {
+      title = dom.window.document.getElementById('title-text').textContent
+    }
+    
+    const replacedImages = replaceImgWithBase64(dom, getIdFromFilename(filename))
+    titleHeading.remove()
+    breadcrumbs.remove()
+    const htmlString = dom.serialize()
+
+    if (title.includes(" : ")) {
+      title = title.split(' : ')[1]
+    }
+    const params = {
+      name: `${title}`,
+      html: htmlString
+    }
+    if (pagesArray[i].chapterId) {
+      params.chapter_id = pagesArray[i].chapterId
+    } else {
+      params.book_id = parentBook.book
+    }
+    return new Promise(resolve => setTimeout(resolve, i * timeoutBetweenPages))
+      .then(() => {
+        process.stdout.write(filename)
+        return axios.createPage(params)
+         .then(resp => {
+            process.stdout.clearLine(0)
+            process.stdout.cursorTo(0)
+            process.stdout.write(`\x1b[32m ${filename} \x1b[0m\n`)
+            pageCreatedCount++
+            // createAttachments(dom, replacedImages, resp.data.id)
+         })
+         .catch(err => {
+            process.stdout.write(`\x1b[31m ${filename} \x1b[0m\n`)
+            pagesNotCreated.push(filename)
+            console.log(err)
+         })
+      })
+  })
+
+  const createdPages = Promise.all(promises)
+  return createdPages
+}
+
 const hiJon = (options) => {
   console.log(options.color)
   console.log("                         *#@@@@@@@@@@@@@@@@@@@*                           ")
@@ -406,47 +477,50 @@ const init = async () => {
   await putBooksOnShelves()
   console.log('\x1b[32m Books are on the shelves! \x1b[0m')
   console.log('\x1b[33m Creating chapters... \x1b[0m')
-  await createChapters()
-  console.log('\x1b[32m Chapters Created! \x1b[0m')
-  if (moreTrey && chaptersNotCreated.length === 0) {
-    hiJon({
-      color: '\x1b[32m'
+  
+  setTimeout(async () => {
+    await createChapters()
+    console.log('\x1b[32m Chapters Created! \x1b[0m')
+    if (moreTrey && chaptersNotCreated.length === 0) {
+      hiJon({
+        color: '\x1b[32m'
+      })
+    }
+    console.log('\x1b[33m Creating Standalone Pages... \x1b[0m')
+    await createPages(pagesFilesNoChapter)
+    console.log('\x1b[32m Standalone Pages Created! \x1b[0m')
+    if (moreTrey && pagesNotCreated.length === 0) {
+      hiJon({
+        color: '\x1b[32m'
+      })
+    }
+    console.log('\x1b[33m Creating Pages in Chapters... \x1b[0m')
+    await createPages(pageFilesWithChapter)
+    console.log('\x1b[32m Pages in Chapters Created! \x1b[0m')
+    console.log('------------------------------------------------')
+    console.log(`\x1b[32m Books Created: ${bookCreatedCount} \x1b[0m`)
+    console.log(`\x1b[32m Chapters Created: ${chapterCreatedCount} \x1b[0m`)
+    console.log(`\x1b[32m Pages Created: ${pageCreatedCount} \x1b[0m`)
+    console.log(`\x1b[31m Book Errors: ${booksNotCreated.length} \x1b[0m`)
+    console.log(`\x1b[31m Chapter Errors: ${chaptersNotCreated.length} \x1b[0m`)
+    console.log(`\x1b[31m Page Errors: ${pagesNotCreated.length} \x1b[0m`)
+    hiJon({ 
+      color: booksNotCreated.length > 0 || pagesNotCreated.length > 0 ? '\x1b[91m' : '\x1b[32m'
+     })
+  
+    console.log("Books Not Created:")
+    booksNotCreated.forEach((book) => {
+      console.log(`\x1b[32m ${book} \x1b[0m`)
+      })
+    console.log("Chapters Not Created:")
+    chaptersNotCreated.forEach((chapter) => {
+      console.log(`\x1b[32m ${chapter} \x1b[0m`)
+      })
+    console.log("Pages Not Created:")
+    pagesNotCreated.forEach((page) => {
+      console.log(`\x1b[32m ${page} \x1b[0m`)
     })
-  }
-  console.log('\x1b[33m Creating Standalone Pages... \x1b[0m')
-  await createPages(pagesFilesNoChapter)
-  console.log('\x1b[32m Standalone Pages Created! \x1b[0m')
-  if (moreTrey && pagesNotCreated.length === 0) {
-    hiJon({
-      color: '\x1b[32m'
-    })
-  }
-  console.log('\x1b[33m Creating Pages in Chapters... \x1b[0m')
-  await createPages(pageFilesWithChapter)
-  console.log('\x1b[32m Pages in Chapters Created! \x1b[0m')
-  console.log('------------------------------------------------')
-  console.log(`\x1b[32m Books Created: ${bookCreatedCount} \x1b[0m`)
-  console.log(`\x1b[32m Chapters Created: ${chapterCreatedCount} \x1b[0m`)
-  console.log(`\x1b[32m Pages Created: ${pageCreatedCount} \x1b[0m`)
-  console.log(`\x1b[31m Book Errors: ${booksNotCreated.length} \x1b[0m`)
-  console.log(`\x1b[31m Chapter Errors: ${chaptersNotCreated.length} \x1b[0m`)
-  console.log(`\x1b[31m Page Errors: ${pagesNotCreated.length} \x1b[0m`)
-  hiJon({ 
-    color: booksNotCreated.length > 0 || pagesNotCreated.length > 0 ? '\x1b[91m' : '\x1b[32m'
-   })
-
-  console.log("Books Not Created:")
-  booksNotCreated.forEach((book) => {
-    console.log(`\x1b[32m ${book} \x1b[0m`)
-    })
-  console.log("Chapters Not Created:")
-  chaptersNotCreated.forEach((chapter) => {
-    console.log(`\x1b[32m ${chapter} \x1b[0m`)
-    })
-  console.log("Pages Not Created:")
-  pagesNotCreated.forEach((page) => {
-    console.log(`\x1b[32m ${page} \x1b[0m`)
-  })
+  }, 1000)
 }
 
 process.argv.forEach(function (val, index, array) {
@@ -473,4 +547,7 @@ if (process.argv[2] === 'run') {
 
 if (process.argv[2] === 'sort') {
   sortFiles()
+}
+if (process.argv[2] === 'attachments') {
+  createAttachment()
 }
