@@ -18,8 +18,11 @@ class AxiosAdapter {
         return retryCount * 2000; // time interval between retries
       },
       retryCondition: (error) => {
-        // if retry condition is not specified, by default idempotent requests are retried
-        return error.response.status === 500 || error.response.status === 404;
+        if (error.response) {
+          // if retry condition is not specified, by default idempotent requests are retried
+          return error.response.status === 500 || error.response.status === 404;
+        }
+        return false
       },
     });
 
@@ -99,6 +102,10 @@ class AxiosAdapter {
 
   getChapters = async () => {
     return this.get('/chapters')
+  }
+
+  getShelf = async (id) => {
+    return this.get(`/shelves/${id}`)
   }
 
   updateShelf = async(id, params) => {

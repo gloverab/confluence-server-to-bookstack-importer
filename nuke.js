@@ -16,17 +16,17 @@ const nuke = async () => {
   await axios.getShelves()
     .then(resp => {
       shelves = resp.data.data
-      resp.data.data.forEach(shelf => {
-        axios.deleteShelf(shelf.id)
-      })
+    })
+    .catch(err => {
+      console.log('getShelves Error:', err)
     })
 
   await axios.getBooks()
     .then(resp => {
       books = resp.data.data
-      resp.data.data.forEach(book => {
-        axios.deleteBook(book.id)
-      })
+    })
+    .catch(err => {
+      console.log('getBooks Error:', err)
     })
 
   const shelfPromises = shelves.map(shelf => {
@@ -45,7 +45,7 @@ const nuke = async () => {
         return
       })
       .catch(err => {
-        console.log('error deleting shelves')
+        console.log('error deleting books')
       })
   })
 

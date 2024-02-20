@@ -2,7 +2,10 @@
   "scripts": {
     "import": "npx tsc && node ./dist/import.js -- import",
     "sort": "npx tsc && node ./dist/import.js -- sort",
+    "attachments": "npx tsc && node ./dist/import.js -- attachments",
     "fixLinks": "npx tsc && node ./dist/import.js -- fixLinks",
+    "attach": "npx tsc && node ./dist/attachments.js -- attach",
+    "killShelf": "npx tsc && node ./dist/deleteShelf.js -- deleteById",
     "nuke": "node nuke.js"
   },
   "dependencies": {

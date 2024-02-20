@@ -9,6 +9,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const trey_1 = require("./trey");
+const attachmentsFile_1 = require("../outputJS/attachmentsFile");
 require('dotenv').config();
 const slugify = require('slugify');
 const fs = require('fs');
@@ -28,6 +30,7 @@ let shelves = [];
 let books = [];
 let chapters = [];
 let chapterGeneralPages = [];
+let attachmentsByPage = {};
 const sortedFiles = {
     shelves: [],
     books: [],
@@ -123,6 +126,16 @@ const getLinkToChapterOrPage = (filename, type) => {
         return `/books/${getSlugFromTitleInFile(branch[2])}/page/${getSlugFromTitleInFile(filename)}`;
     }
 };
+const isAttachmentLink = (link) => {
+    const href = link.getAttribute('href');
+    return href && href.startsWith("attachments/");
+};
+const removeElementByClassName = (dom, className) => {
+    const elementToRemove = dom.window.document.getElementsByClassName(className);
+    if (elementToRemove.length > 0) {
+        elementToRemove[0].remove();
+    }
+};
 const replaceBreadcrumbsAndLinks = (dom, breadcrumbs, filename) => {
     const titleTextElement = dom.window.document.getElementById('title-text');
     let title = "title not found";
@@ -134,13 +147,16 @@ const replaceBreadcrumbsAndLinks = (dom, breadcrumbs, filename) => {
     if (titleHeading) {
         titleHeading.remove();
     }
-    const footer = dom.window.document.getElementsByClassName('footer-body');
-    if (footer.length > 0) {
-        footer[0].remove();
+    const attachmentsH2 = dom.window.document.getElementById('attachments');
+    if (attachmentsH2) {
+        attachmentsH2.remove();
     }
+    removeElementByClassName(dom, 'footer-body');
+    removeElementByClassName(dom, 'plugin_attachments_upload_container');
+    removeElementByClassName(dom, 'download-all-link');
     breadcrumbs === null || breadcrumbs === void 0 ? void 0 : breadcrumbs.remove();
-    const linksToOtherFiles = dom.window.document.getElementsByTagName('a');
-    const linksArr = [...linksToOtherFiles];
+    const allLinks = dom.window.document.getElementsByTagName('a');
+    const linksArr = [...allLinks];
     linksArr.forEach((link, i) => {
         const href = link.getAttribute('href');
         if (isInternalLink(href)) {
@@ -159,7 +175,25 @@ const replaceBreadcrumbsAndLinks = (dom, breadcrumbs, filename) => {
                     break;
             }
             if (newHref) {
-                linksToOtherFiles[i].setAttribute('href', newHref);
+                allLinks[i].setAttribute('href', newHref);
+            }
+        }
+        if (href && isAttachmentLink(link)) {
+            const existingRecord = attachmentsByPage[getIdFromFilename(filename)];
+            const name = link.textContent;
+            if (existingRecord) {
+                const obj = {
+                    attachmentHrefs: [...existingRecord.attachmentHrefs, { name, href }],
+                    pageNewId: undefined
+                };
+                attachmentsByPage[getIdFromFilename(filename)] = obj;
+            }
+            else {
+                const obj = {
+                    attachmentHrefs: [{ name, href }],
+                    pageNewId: undefined
+                };
+                attachmentsByPage[getIdFromFilename(filename)] = obj;
             }
         }
     });
@@ -268,6 +302,9 @@ const createChapters = () => __awaiter(void 0, void 0, void 0, function* () {
                 };
                 return axios.createPage(generalPageParams)
                     .then(resp => {
+                    if (attachmentsByPage[getIdFromFilename(chapterFilename)]) {
+                        attachmentsByPage[getIdFromFilename(chapterFilename)].pageNewId = resp.data.id;
+                    }
                     chapterGeneralPages.push(chapterFilename);
                 })
                     .catch(err => {
@@ -339,6 +376,15 @@ const createBooks = () => __awaiter(void 0, void 0, void 0, function* () {
                     book_id: bookId,
                     name: "_General",
                     html: htmlString
+                })
+                    .then(resp2 => {
+                    if (attachmentsByPage[getIdFromFilename(filename)]) {
+                        attachmentsByPage[getIdFromFilename(filename)].pageNewId = resp2.data.id;
+                    }
+                    return resp2;
+                })
+                    .catch(err2 => {
+                    console.log(err2);
                 });
             })
                 .then(resp => {
@@ -346,6 +392,7 @@ const createBooks = () => __awaiter(void 0, void 0, void 0, function* () {
                 return resp.data;
             })
                 .catch(err => {
+                console.log('createBook ERR:', err);
                 console.log(`\x1b[31m ${filename} \x1b[0m`);
                 booksNotCreated.push(filename);
             });
@@ -375,6 +422,14 @@ const createShelves = () => __awaiter(void 0, void 0, void 0, function* () {
                 book_id: bookId,
                 name: "_General",
                 html: htmlString
+            })
+                .then(resp => {
+                if (attachmentsByPage[getIdFromFilename(shelfFileName)]) {
+                    attachmentsByPage[getIdFromFilename(shelfFileName)].pageNewId = resp.data.id;
+                }
+            })
+                .catch(err => {
+                console.log('book general page error');
             });
         })
             .then(resp => {
@@ -387,6 +442,11 @@ const createShelves = () => __awaiter(void 0, void 0, void 0, function* () {
             shelves.push({
                 id: resp.data.id,
                 previousId: getIdFromFilename(shelfFileName)
+            });
+            books.push({
+                book: bookId,
+                previousId: getIdFromFilename(shelfFileName),
+                shelf: resp.data.id
             });
             return resp.data;
         })
@@ -410,36 +470,6 @@ const createAttachment = () => __awaiter(void 0, void 0, void 0, function* () {
     })
         .catch(err => {
         console.log(err);
-    });
-});
-const createAttachments = (dom, replacedImages, page_id) => __awaiter(void 0, void 0, void 0, function* () {
-    const links = dom.window.document.getElementsByTagName('a');
-    const arr = [...links];
-    arr.forEach((link, i) => {
-        const href = link.getAttribute('href');
-        if (href && fs.existsSync(getFilePath(href))) {
-            if (!replacedImages.includes(href)) {
-                setTimeout(() => __awaiter(void 0, void 0, void 0, function* () {
-                    let name = '';
-                    if (link.textContent) {
-                        name = link.textContent;
-                    }
-                    const params = {
-                        uploaded_to: page_id,
-                        name: link.textContent,
-                        file: fs.createReadStream(getFilePath(href))
-                    };
-                    axios.createAttachment(params)
-                        .then(resp => {
-                        console.log(resp.data);
-                    })
-                        .catch(err => {
-                        console.log(err);
-                        // console.log(err.response.data)
-                    });
-                }), i * timeoutBetweenPages);
-            }
-        }
     });
 });
 const getBase64FromElement = (element) => {
@@ -502,6 +532,9 @@ const createPages = (pagesArray) => __awaiter(void 0, void 0, void 0, function* 
             return axios.createPage(params)
                 .then(resp => {
                 console.log(`\x1b[32m ${filename} \x1b[0m`);
+                if (attachmentsByPage[getIdFromFilename(filename)]) {
+                    attachmentsByPage[getIdFromFilename(filename)].pageNewId = resp.data.id;
+                }
                 pageCreatedCount++;
                 // createAttachments(dom, replacedImages, resp.data.id)
             })
@@ -527,6 +560,10 @@ const fixLinks = () => {
             replaceBreadcrumbsAndLinks(dom, breadcrumbs, filename);
         }
     });
+    const attachmentsCode = `module.exports = {
+    attachmentsByPage: ${JSON.stringify(attachmentsByPage)}
+  };`;
+    fs.writeFileSync("./outputJS/attachmentsFile.js", attachmentsCode);
 };
 const chapterRetry = () => __awaiter(void 0, void 0, void 0, function* () {
     let promises = retry.chapters.map((chapter) => {
@@ -559,40 +596,6 @@ const handleRetry = () => __awaiter(void 0, void 0, void 0, function* () {
     }
     return;
 });
-const hiJon = (options) => {
-    console.log(options.color);
-    console.log("                         *#@@@@@@@@@@@@@@@@@@@*                           ");
-    console.log("                  @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                        ");
-    console.log("                @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                     ");
-    console.log("              @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%                  ");
-    console.log("           *@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*               ");
-    console.log("         &@@@@@@@@@@@@@@@@@@@@@@@@@,@@@@@@@@@@@@@@@@@@@@@@@.              ");
-    console.log("       /@@@@@@@@@@@@@@@@@@@@@@@@@@ @@@@@@@@@@@@@@@@@@@@@@@@@@(            ");
-    console.log("      @@@@@@@@@@@@@@@@@@@@@@@@@@.@@@@@&@@@@@@@@@@@@@@@@@@@@@@@@           ");
-    console.log("     @%@@@@@@@@@@@@@@@@@@@@@@@ @@@@@.@@@@@@@@@@@@ @@@@@@@@@@@@@@          ");
-    console.log("      (@@@@@@@@@@@@@/@@@@@@,*@@@@  @@@@@@@@@@@@/ @@%@@@@@@@@@@@@@         ");
-    console.log("      @@@@@@@@@@@,.@@@@  /@@&   @@@@@@@@@@@@@.  @@  @@@@@@@@@@@@@%        ");
-    console.log("     %@@@@@@@@@@@@   @@    @@@@@@@@@@@@@@(           @@@@@@@@@@@@@@       ");
-    console.log("     &@@@@@@@@@@@@@@@@@@@@@@@@@@@@*   .#@@@@@@#      @@@@@@@@@@@@@        ");
-    console.log("     @@@@@@@@@@@@@,           #@   @@            @@@@@@@@@@@@@@@@         ");
-    console.log("    @@@@@@@@@@   %,           #,    @            @     @@@@@@@@@@@        ");
-    console.log("    %@@@@@@@@@    @           @     @           @     /@@@@@@@@@&*        ");
-    console.log("  &@@@@@@@@@@@(     #@*   *#&         #@*   *&@       /@@@@@@@#           ");
-    console.log("       @@@@% @@                                       @@  @@@@@@          ");
-    console.log("        @@@@ /@                                      ,@. @@@@%            ");
-    console.log("      (@@@@@# @@                                     @@ #@@@@@@           ");
-    console.log("      @@@@@@@ /@*        .@@@@@@@@@@@@@@@@.         *@@ #@@@@@@@          ");
-    console.log("        &@@@@@@@@@.   &@@@@@@@@@@@@@@@@@@@@@@.    .@@@@@@@@,.             ");
-    console.log("            ((,@@@@@( (@@                  @@,  @@@@@@ ((                 ");
-    console.log("                 @@@@. @@                  @@  @@@@@                      ");
-    console.log("                  &@@@@@@#  @@@@&&&&@@@@  @@@@@@@@&                       ");
-    console.log("                   &@@@@@@#  ,@@@@@@@@   @@@@@@@@                         ");
-    console.log("                     %@@@@@@@@@@@@@@@@@@@@@@@@@                           ");
-    console.log("                       ,@@@@@@@@@@@@@@@@@@@@@                             ");
-    console.log("                          #@@@@@@@@@@@@@@@                                ");
-    console.log("                                                                          ");
-    console.log("\x1b[0m");
-};
 const displayResultsAndTrey = () => {
     console.log('------------------------------------------------');
     console.log(`\x1b[32m Books Created: ${bookCreatedCount} \x1b[0m`);
@@ -601,7 +604,7 @@ const displayResultsAndTrey = () => {
     console.log(`\x1b[31m Book Errors: ${booksNotCreated.length} \x1b[0m`);
     console.log(`\x1b[31m Chapter Errors: ${chaptersNotCreated.length} \x1b[0m`);
     console.log(`\x1b[31m Page Errors: ${pagesNotCreated.length} \x1b[0m`);
-    hiJon({
+    (0, trey_1.logTrey)({
         color: booksNotCreated.length > 0 || pagesNotCreated.length > 0 || retry.chapterGeneralPages.length > 0 ? '\x1b[91m' : '\x1b[32m'
     });
     console.log("Books Not Created:");
@@ -620,6 +623,14 @@ const displayResultsAndTrey = () => {
     pagesNotCreated.forEach((page) => {
         console.log(`\x1b[91m ${page} \x1b[0m`);
     });
+};
+const handleAttachments = () => {
+    const newAttachmentsRecords = Object.assign({}, attachmentsFile_1.attachmentRecords);
+    newAttachmentsRecords[subDirectory] = attachmentsByPage;
+    const attachmentsCode = `module.exports = {
+    attachmentRecords: ${JSON.stringify(newAttachmentsRecords)}
+  };`;
+    fs.writeFileSync("./outputJS/attachmentsFile.js", attachmentsCode);
 };
 const init = () => __awaiter(void 0, void 0, void 0, function* () {
     console.log('\x1b[33m Sorting files... \x1b[0m');
@@ -645,11 +656,11 @@ const init = () => __awaiter(void 0, void 0, void 0, function* () {
         yield createPages(sortedFiles.pagesBelongChapter);
         console.log('\x1b[32m Pages in Chapters Created! \x1b[0m');
         yield handleRetry();
+        handleAttachments();
         displayResultsAndTrey();
     }), 1000);
 });
 process.argv.forEach(function (val, index, array) {
-    console.log('HIIIII', index, val);
     if (index === 4 && !!val) {
         subDirectory = val;
     }
@@ -672,7 +683,7 @@ if (process.argv[3] === 'sort') {
     sortFiles();
 }
 if (process.argv[3] === 'attachments') {
-    createAttachment();
+    handleAttachments();
 }
 if (process.argv[3] === 'fixLinks') {
     fixLinks();
