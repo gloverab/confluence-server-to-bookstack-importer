@@ -50,8 +50,8 @@ const run = async () => {
   })
 
   await Promise.all(promises)
-  console.log('good!')
-  console.log('not attached:', notAttached)
+  console.log(`Uploaded ${uploadParamCollection.length} attachments`)
+  console.log('Not attached:', notAttached)
   return
 }
 
