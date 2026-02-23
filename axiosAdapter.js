@@ -84,8 +84,17 @@ class AxiosAdapter {
     return this.postJson('/pages', body)
   }
 
+  updatePage = async (id, body) => {
+    return this.put('/pages', id, body)
+  }
+
   createAttachment = async (body) => {
-    return this.postMFD('/attachments', body)
+    const headers = (typeof body.getHeaders === 'function') ? { ...body.getHeaders(), Authorization: `Token ${this.id}:${this.secret}` } : this.getHeaders('multipart/form-data')
+    return this.client.post('/attachments', body, {
+      headers,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity,
+    })
   }
 
   getBooks = async () => {
