@@ -6,7 +6,8 @@
     "fixLinks": "npx tsc && node ./dist/import.js -- fixLinks",
     "attach": "npx tsc && node ./dist/attachments.js -- attach",
     "killShelf": "npx tsc && node ./dist/deleteShelf.js -- deleteById",
-    "nuke": "node nuke.js"
+    "nuke": "node nuke.js",
+    "from-input": "node run-from-input.js"
   },
   "dependencies": {
     "axios": "^1.6.7",
@@ -14,7 +15,8 @@
     "dotenv": "^16.4.3",
     "form-data": "^4.0.0",
     "jsdom": "^24.0.0",
-    "slugify": "^1.6.6"
+    "slugify": "^1.6.6",
+    "unzipper": "^0.12.3"
   },
   "devDependencies": {
     "@types/node": "^20.11.18",

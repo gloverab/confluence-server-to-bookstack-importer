@@ -1,5 +1,11 @@
 node_modules
 package-lock.json
 html
+input
 dist
 .env
+.idea/confluence-server-to-bookstack-importer.iml
+.idea/vcs.xml
+.idea/modules.xml
+BookStack-development
+outputJS

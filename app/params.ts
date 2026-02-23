@@ -1,6 +1,7 @@
 export interface ICreatePageParams {
   name: string;
   html: string;
-  chapter_id?: string;
-  book_id?: string;
+  chapter_id?: number;
+  book_id?: number;
+  parent_page_id?: number;
 }

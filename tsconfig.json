@@ -7,5 +7,7 @@
     "sourceMap": true,
     "outDir": "dist"
   },
+  "include": ["app/**/*.ts"],
+  "exclude": ["node_modules", "BookStack-development"],
   "lib": ["es2015"]
 }
